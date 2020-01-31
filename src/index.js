@@ -30,16 +30,17 @@ app.post('/players', async (req, res) => {
   const { username, password, name, email, age, sex, profilePicture, ranking } = req.body
   const db = await getDb()
   const player = { username, password, name, email, age, sex, profilePicture, ranking }
-  const insertResult = await db.collection('Player').insertOne(player)
-  const insertedPlayer = insertResult.ops[0]
-  res.send(insertedPlayer)
+  const insertedPlayer = await db.collection('Player').insertOne(player)
+  const newPlayer = insertedPlayer.ops[0]
+  res.send(newPlayer)
 })
 
 app.post('/matches', async (req, res) => {
   const { data, player1Id, player2Id, winnerId, result, points } = req.body
   const db = await getDb()
   const match = { data, player1Id, player2Id, winnerId, result, points }
-  const newMatch = await db.collection('Match').insertOne(match).ops[0]
+  const insertedMatch = await db.collection('Match').insertOne(match)
+  const newMatch = insertedMatch.ops[0]
   res.send(newMatch)
 })
 
