@@ -13,9 +13,9 @@ const client = new MongoClient(url, { useUnifiedTopology: true });
 
 const getDb = async () => {
   if (!client.isConnected()) {
-    client.connect(function(err) {
-    assert.equal(null, err)
-    console.log("Connected successfully to server")
+    await client.connect(err => {
+      assert.equal(null, err)
+      console.log("Connected successfully to server")
     })
   } 
   const db = client.db(dbName)
@@ -25,6 +25,10 @@ const getDb = async () => {
 
 app.use(morgan('tiny'))
 app.use(bodyParser.json())
+
+app.get('/', async (req, res) => {
+  res.send('Hello PingPong')
+})
 
 app.post('/players', async (req, res) => {
   const { username, password, name, email, age, sex, profilePicture, ranking } = req.body
@@ -98,7 +102,7 @@ app.delete('/players/:playerId', async (req, res) => {
   await db.collection('Player').deleteOne({
     _id: new ObjectID(playerId)
   })
-
+  res.send('Player deleted')
 })
 
 app.delete('/matches/:matchId', async (req, res) => {
@@ -107,8 +111,13 @@ app.delete('/matches/:matchId', async (req, res) => {
   await db.collection('Match').deleteOne({
     _id: new ObjectID(matchId)
   })
+  res.send('Match deleted')
 })
 
-app.listen(8000, function () {
+app.listen(8000, () => {
   console.log('Listening on port 8000!')
+  client.connect(err => {
+    assert.equal(null, err)
+    console.log("Connected successfully to server")
+  })
 })
