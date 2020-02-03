@@ -114,9 +114,9 @@ app.delete('/matches/:matchId', async (req, res) => {
   res.send('Match deleted')
 })
 
-app.listen(8000, () => {
+app.listen(8000, async () => {
   console.log('Listening on port 8000!')
-  client.connect(err => {
+  await client.connect(err => {
     assert.equal(null, err)
     console.log("Connected successfully to server")
   })
