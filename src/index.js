@@ -1,9 +1,8 @@
-const MongoClient = require('mongodb').MongoClient
-const ObjectID = require('mongodb').ObjectID
-const bodyParser = require('body-parser')
-const morgan = require('morgan')
-const assert = require('assert')
-const express = require('express')
+import { ObjectID, MongoClient } from 'mongodb'
+import bodyParser from 'body-parser'
+import morgan from 'morgan'
+import assert from 'assert'
+import express from 'express'
 const app = express()
 
 const url = 'mongodb://localhost:27017'
