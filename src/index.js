@@ -1,22 +1,20 @@
 import { ObjectID, MongoClient } from 'mongodb'
 import bodyParser from 'body-parser'
-import morgan from 'morgan'
-import assert from 'assert'
 import express from 'express'
+import jwt from 'jsonwebtoken'
+const morgan = require('morgan') // Using require as a workaround to deprecated default format
 const app = express()
 
 const url = 'mongodb://localhost:27017'
 const dbName = 'PingPong'
+const JWT_KEY = 'secret'
 
 const client = new MongoClient(url, { useUnifiedTopology: true });
 
 const getDb = async () => {
-  if (!client.isConnected()) {
-    await client.connect(err => {
-      assert.equal(null, err)
-      console.log("Connected successfully to server")
-    })
-  } 
+if (!client.isConnected()) {
+  await client.connect()
+} 
   const db = client.db(dbName)
   
   return db
@@ -29,13 +27,37 @@ app.get('/', async (req, res) => {
   res.send('Hello PingPong')
 })
 
-app.post('/players', async (req, res) => {
-  const { username, password, name, email, age, sex, profilePicture, ranking } = req.body
+app.post('/auth/signUp', async (req, res) => {
+  const { username, password, name, email, age, sex } = req.body
   const db = await getDb()
-  const player = { username, password, name, email, age, sex, profilePicture, ranking }
-  const insertedPlayer = await db.collection('Player').insertOne(player)
-  const newPlayer = insertedPlayer.ops[0]
-  res.send(newPlayer)
+  const playerInfo = { username, password, name, email, age, sex, points: 0 }
+  const oldPlayer = db.collection('Player').find({
+    $or:[
+      { username },
+      { email }
+    ]
+  })
+  if (oldPlayer) {
+    const insertedPlayer = await db.collection('Player').insertOne(playerInfo)
+    const newPlayer = insertedPlayer.ops[0]
+    res.send(newPlayer)
+  }
+})
+
+app.post('/auth/signIn', async (req, res) => {
+  const { username, password } = req.body
+  const db = await getDb()
+  const playerInfo = { username, password }
+  const authPlayer = db.collection('Player').findOne(playerInfo.username)
+  const token = jwt.sign({
+    username: authPlayer.username,
+    password: authPlayer.password
+  }, JWT_KEY)
+  res.send(token)
+})
+
+app.get('/me', async (req, res) => {
+  
 })
 
 app.post('/matches', async (req, res) => {
@@ -115,8 +137,4 @@ app.delete('/matches/:matchId', async (req, res) => {
 
 app.listen(8000, async () => {
   console.log('Listening on port 8000!')
-  await client.connect(err => {
-    assert.equal(null, err)
-    console.log("Connected successfully to server")
-  })
 })
