@@ -31,33 +31,43 @@ app.post('/auth/signUp', async (req, res) => {
   const { username, password, name, email, age, sex } = req.body
   const db = await getDb()
   const playerInfo = { username, password, name, email, age, sex, points: 0 }
-  const oldPlayer = db.collection('Player').find({
+  const oldPlayer = await db.collection('Player').findOne({
     $or:[
       { username },
       { email }
     ]
   })
   if (oldPlayer) {
-    const insertedPlayer = await db.collection('Player').insertOne(playerInfo)
-    const newPlayer = insertedPlayer.ops[0]
-    res.send(newPlayer)
+    res.send('Player ja cadastrado')
+    return
   }
+  const insertedPlayer = await db.collection('Player').insertOne(playerInfo)
+  const newPlayer = insertedPlayer.ops[0]
+  res.send(newPlayer)
 })
 
 app.post('/auth/signIn', async (req, res) => {
   const { username, password } = req.body
   const db = await getDb()
   const playerInfo = { username, password }
-  const authPlayer = db.collection('Player').findOne(playerInfo.username)
-  const token = jwt.sign({
-    username: authPlayer.username,
-    password: authPlayer.password
-  }, JWT_KEY)
+  const authPlayer = await db.collection('Player').findOne(playerInfo)
+  if (!authPlayer || authPlayer.password !== password) {
+    res.send('Player não cadastrado ou senha incorreta')
+    return
+  }
+  const token = jwt.sign(authPlayer, JWT_KEY)
   res.send(token)
 })
 
 app.get('/me', async (req, res) => {
-  
+  const token = req.headers['authorization']
+  try {
+    const verifiedUser = jwt.verify(token, JWT_KEY)
+    console.log(verifiedUser)
+    res.send(verifiedUser)
+  } catch (err) {
+    res.sendStatus(401)
+  }
 })
 
 app.post('/matches', async (req, res) => {
