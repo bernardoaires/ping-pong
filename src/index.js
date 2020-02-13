@@ -7,7 +7,7 @@ const app = express()
 
 const url = 'mongodb://localhost:27017'
 const dbName = 'PingPong'
-const JWT_KEY = 'secret'
+const JWT_KEY = 'grilofeliz'
 
 const client = new MongoClient(url, { useUnifiedTopology: true });
 
@@ -20,6 +20,7 @@ if (!client.isConnected()) {
   return db
 }
 
+app.use(express.json())
 app.use(morgan('tiny'))
 app.use(bodyParser.json())
 
@@ -51,29 +52,32 @@ app.post('/auth/signIn', async (req, res) => {
   const db = await getDb()
   const playerInfo = { username, password }
   const authPlayer = await db.collection('Player').findOne(playerInfo)
-  if (!authPlayer || authPlayer.password !== password) {
-    res.send('Player não cadastrado ou senha incorreta')
+  if (!authPlayer) {
+    res.sendStatus(404)
     return
   }
-  const token = jwt.sign(authPlayer, JWT_KEY)
+  const token = jwt.sign({
+    userId: authPlayer._id
+  }, JWT_KEY)
   res.send(token)
 })
 
 app.get('/me', async (req, res) => {
-  const token = req.headers['authorization']
+  const token = req.headers.authorization
   try {
-    const verifiedUser = jwt.verify(token, JWT_KEY)
-    console.log(verifiedUser)
-    res.send(verifiedUser)
+    const verifiedPlayer = jwt.verify(token, JWT_KEY)
+    const db = await getDb()
+    const playerInfo = await db.collection('Player').findOne({ _id: new ObjectID(verifiedPlayer.userId) })
+    res.send(playerInfo)
   } catch (err) {
     res.sendStatus(401)
   }
 })
 
 app.post('/matches', async (req, res) => {
-  const { data, player1Id, player2Id, winnerId, result, points } = req.body
+  const { date, player1Id, player2Id, winnerId, result, points } = req.body
   const db = await getDb()
-  const match = { data, player1Id, player2Id, winnerId, result, points }
+  const match = { date, player1Id, player2Id, winnerId, result, points }
   const insertedMatch = await db.collection('Match').insertOne(match)
   const newMatch = insertedMatch.ops[0]
   res.send(newMatch)
