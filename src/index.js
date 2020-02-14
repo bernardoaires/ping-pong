@@ -2,12 +2,14 @@ import { ObjectID, MongoClient } from 'mongodb'
 import bodyParser from 'body-parser'
 import express from 'express'
 import jwt from 'jsonwebtoken'
+import dotenv from 'dotenv'
 const morgan = require('morgan') // Using require as a workaround to deprecated default format
 const app = express()
+dotenv.config()
 
 const url = 'mongodb://localhost:27017'
 const dbName = 'PingPong'
-const JWT_KEY = 'grilofeliz'
+const MATCH_POINTS = 25
 
 const client = new MongoClient(url, { useUnifiedTopology: true });
 
@@ -58,14 +60,14 @@ app.post('/auth/signIn', async (req, res) => {
   }
   const token = jwt.sign({
     userId: authPlayer._id
-  }, JWT_KEY)
+  }, process.env.JWT_KEY)
   res.send(token)
 })
 
 app.get('/me', async (req, res) => {
   const token = req.headers.authorization
   try {
-    const verifiedPlayer = jwt.verify(token, JWT_KEY)
+    const verifiedPlayer = jwt.verify(token, process.env.JWT_KEY)
     const db = await getDb()
     const playerInfo = await db.collection('Player').findOne({ _id: new ObjectID(verifiedPlayer.userId) })
     res.send(playerInfo)
@@ -75,10 +77,24 @@ app.get('/me', async (req, res) => {
 })
 
 app.post('/matches', async (req, res) => {
-  const { date, player1Id, player2Id, winnerId, result, points } = req.body
+  const { date, winnerId, loserId, result } = req.body
   const db = await getDb()
-  const match = { date, player1Id, player2Id, winnerId, result, points }
+  const match = { date, winnerId, loserId, result }
   const insertedMatch = await db.collection('Match').insertOne(match)
+  await db.collection('Player').updateOne({
+    _id: new ObjectId(winnerId)
+  }, {
+    $inc: {
+      points: MATCH_POINTS
+    }
+  })
+  await db.collection('Player').updateOne({
+    _id: new ObjectId(loserId)
+  }, {
+    $inc: {
+      points: -MATCH_POINTS
+    }
+  })
   const newMatch = insertedMatch.ops[0]
   res.send(newMatch)
 })
