@@ -3,6 +3,7 @@ import bodyParser from 'body-parser'
 import express from 'express'
 import jwt from 'jsonwebtoken'
 import dotenv from 'dotenv'
+import Joi from '@hapi/joi'
 const morgan = require('morgan') // Using require as a workaround to deprecated default format
 const app = express()
 dotenv.config()
@@ -14,9 +15,9 @@ const MATCH_POINTS = 25
 const client = new MongoClient(url, { useUnifiedTopology: true });
 
 const getDb = async () => {
-if (!client.isConnected()) {
-  await client.connect()
-} 
+  if (!client.isConnected()) {
+    await client.connect()
+  } 
   const db = client.db(dbName)
   
   return db
@@ -31,9 +32,50 @@ app.get('/', async (req, res) => {
 })
 
 app.post('/auth/signUp', async (req, res) => {
-  const { username, password, name, email, age, sex } = req.body
+  const { username, password, repeat_password, name, email, age, sex } = req.body
   const db = await getDb()
-  const playerInfo = { username, password, name, email, age, sex, points: 0 }
+  const playerInfo = { username, password, repeat_password, name, email, age, sex, points: 0 }
+  const schema = Joi.object({
+    username: Joi.string()
+    .trim()
+    .email()
+    .required(),
+    
+    password: Joi.string()
+    .pattern(new RegExp('^[a-zA-Z0-9]{3,30}$'))
+    .required(),
+    
+    repeat_password: Joi.ref('password'),
+    
+    name: Joi.string()
+    .alphanum()
+    .min(3)
+    .max(30)
+    .required(),
+    
+    email: Joi.ref('username'),
+    
+    age: Joi.number()
+    .integer()
+    .min(18)
+    .max(65)
+    .required(),
+    
+    sex: Joi.allow(['M', 'F'])
+    .required(),
+
+    points: Joi.number()
+    .integer()
+    .default(0)
+
+  }).with('password', 'repeat_password')
+  
+  try {
+    const value = await schema.validateAsync(playerInfo)
+  }
+  catch (err) {
+    res.send(err)
+  }
   const oldPlayer = await db.collection('Player').findOne({
     $or:[
       { username },
@@ -76,20 +118,30 @@ app.get('/me', async (req, res) => {
   }
 })
 
+app.get('/ranking', async (req, res) => {
+  const db = await getDb()
+  const sortedPlayers = await db.collection('Player').find({}).sort({ points: -1 }).toArray()
+  res.send(sortedPlayers)
+})
+
 app.post('/matches', async (req, res) => {
   const { date, winnerId, loserId, result } = req.body
   const db = await getDb()
   const match = { date, winnerId, loserId, result }
+  if (!winnerId || !loserId || winnerId === loserId) {
+    req.sendStatus(401)
+    return
+  }
   const insertedMatch = await db.collection('Match').insertOne(match)
   await db.collection('Player').updateOne({
-    _id: new ObjectId(winnerId)
+    _id: new ObjectID(winnerId)
   }, {
     $inc: {
       points: MATCH_POINTS
     }
   })
   await db.collection('Player').updateOne({
-    _id: new ObjectId(loserId)
+    _id: new ObjectID(loserId)
   }, {
     $inc: {
       points: -MATCH_POINTS
@@ -145,24 +197,6 @@ app.put('/matches/:matchId', async (req, res) => {
     _id: new ObjectID(matchId)
   })
   res.send(match)
-})
-
-app.delete('/players/:playerId', async (req, res) => {
-  const playerId = req.params.playerId
-  const db = await getDb()
-  await db.collection('Player').deleteOne({
-    _id: new ObjectID(playerId)
-  })
-  res.send('Player deleted')
-})
-
-app.delete('/matches/:matchId', async (req, res) => {
-  const matchId = req.params.matchId
-  const db = await getDb()
-  await db.collection('Match').deleteOne({
-    _id: new ObjectID(matchId)
-  })
-  res.send('Match deleted')
 })
 
 app.listen(8000, async () => {
