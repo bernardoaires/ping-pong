@@ -35,7 +35,8 @@ app.post('/auth/signUp', async (req, res) => {
   const { username, password, repeat_password, name, email, age, sex } = req.body
   const db = await getDb()
   const playerInfo = { username, password, repeat_password, name, email, age, sex, points: 0 }
-  const schema = Joi.object({
+  
+  const schema = Joi.object().keys({
     username: Joi.string()
     .trim()
     .email()
@@ -48,7 +49,7 @@ app.post('/auth/signUp', async (req, res) => {
     repeat_password: Joi.ref('password'),
     
     name: Joi.string()
-    .alphanum()
+    .trim()
     .min(3)
     .max(30)
     .required(),
@@ -61,21 +62,19 @@ app.post('/auth/signUp', async (req, res) => {
     .max(65)
     .required(),
     
-    sex: Joi.allow(['M', 'F'])
+    sex: Joi.string()
     .required(),
-
+    
     points: Joi.number()
     .integer()
     .default(0)
-
+    
   }).with('password', 'repeat_password')
   
-  try {
-    const value = await schema.validateAsync(playerInfo)
-  }
-  catch (err) {
-    res.send(err)
-  }
+  const value = await schema.validateAsync(playerInfo)
+  console.log(value)
+  console.log('Got here')
+  
   const oldPlayer = await db.collection('Player').findOne({
     $or:[
       { username },
