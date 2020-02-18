@@ -63,6 +63,7 @@ app.post('/auth/signUp', async (req, res) => {
     .required(),
     
     sex: Joi.string()
+    .valid('M', 'F')
     .required(),
     
     points: Joi.number()
@@ -71,8 +72,12 @@ app.post('/auth/signUp', async (req, res) => {
     
   }).with('password', 'repeat_password')
   
-  const value = await schema.validateAsync(playerInfo)
-  console.log(value)
+  try {
+    const value = await schema.validateAsync(playerInfo)
+    console.log(value)
+  } catch (err) {
+    res.send('Invalid schema')
+  }
   console.log('Got here')
   
   const oldPlayer = await db.collection('Player').findOne({
