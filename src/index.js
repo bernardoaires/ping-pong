@@ -43,7 +43,7 @@ app.post('/auth/signUp', async (req, res) => {
     .required(),
     
     password: Joi.string()
-    .pattern(new RegExp('^[a-zA-Z0-9]{3,30}$'))
+    .regex(/^[a-zA-Z0-9]{3,30}$/)
     .required(),
     
     repeat_password: Joi.ref('password'),
@@ -68,17 +68,19 @@ app.post('/auth/signUp', async (req, res) => {
     
     points: Joi.number()
     .integer()
-    .default(0)
+    .required()
     
-  }).with('password', 'repeat_password')
+  })
+  .with('password', 'repeat_password')
+  .with('username', 'email')
   
   try {
     const value = await schema.validateAsync(playerInfo)
     console.log(value)
   } catch (err) {
     res.send('Invalid schema')
+    return
   }
-  console.log('Got here')
   
   const oldPlayer = await db.collection('Player').findOne({
     $or:[
@@ -99,6 +101,23 @@ app.post('/auth/signIn', async (req, res) => {
   const { username, password } = req.body
   const db = await getDb()
   const playerInfo = { username, password }
+  const schema = Joi.object().keys({
+    username: Joi.string()
+    .trim()
+    .email()
+    .required(),
+    
+    password: Joi.string()
+    .regex(/^[a-zA-Z0-9]{3,30}$/)
+    .required()
+  }).with('username', 'password')
+  try {
+    const value = await schema.validateAsync(playerInfo)
+    console.log(value)
+  } catch (err) {
+    res.send('Invalid schema')
+    return
+  }
   const authPlayer = await db.collection('Player').findOne(playerInfo)
   if (!authPlayer) {
     res.sendStatus(404)
@@ -119,6 +138,7 @@ app.get('/me', async (req, res) => {
     res.send(playerInfo)
   } catch (err) {
     res.sendStatus(401)
+    return
   }
 })
 
@@ -132,6 +152,28 @@ app.post('/matches', async (req, res) => {
   const { date, winnerId, loserId, result } = req.body
   const db = await getDb()
   const match = { date, winnerId, loserId, result }
+  const schema = Joi.object().keys({
+    date: Joi.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .required(),
+
+    winnerId: Joi.string()
+    .required(),
+
+    loserId: Joi.string()
+    .required(),
+
+    result: Joi.array()
+    .items(Joi.number().integer())
+    .required()
+  }).with('winnerId', 'loserId')
+  try {
+    const value = await schema.validateAsync(match)
+    console.log(value)
+  } catch (err) {
+    res.send('Invalid schema')
+    return
+  }
   if (!winnerId || !loserId || winnerId === loserId) {
     req.sendStatus(401)
     return
