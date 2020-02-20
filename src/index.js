@@ -1,7 +1,8 @@
 import { ObjectID, MongoClient } from 'mongodb'
 import bodyParser from 'body-parser'
-import express from 'express'
 import jwt from 'jsonwebtoken'
+import express from 'express'
+import bcrypt from 'bcrypt'
 import dotenv from 'dotenv'
 import Joi from '@hapi/joi'
 const morgan = require('morgan') // Using require as a workaround to deprecated default format
@@ -92,6 +93,17 @@ app.post('/auth/signUp', async (req, res) => {
     res.send('Player ja cadastrado')
     return
   }
+
+  try {
+    const hashedPassword = await bcrypt.hash(playerInfo.password, 10)
+    playerInfo.password = hashedPassword
+    playerInfo.repeat_password = hashedPassword
+    console.log(hashedPassword)
+    console.log(playerInfo.password)
+  } catch (err) {
+    res.status(500).send('Error hashing password')
+    return
+  }
   const insertedPlayer = await db.collection('Player').insertOne(playerInfo)
   const newPlayer = insertedPlayer.ops[0]
   res.send(newPlayer)
@@ -118,9 +130,21 @@ app.post('/auth/signIn', async (req, res) => {
     res.send('Invalid schema')
     return
   }
-  const authPlayer = await db.collection('Player').findOne(playerInfo)
+  const authPlayer = await db.collection('Player').findOne({ username })
+  console.log(authPlayer)
+  try {
+    if (await bcrypt.compare(req.body.password, authPlayer.password)) {
+      res.send('Successful login')
+    } else {
+      res.status(404).send('Failed login')
+      return
+    }
+  } catch {
+    res.sendStatus(500)
+    return
+  }
   if (!authPlayer) {
-    res.sendStatus(404)
+    res.status(404).send('Player not found')
     return
   }
   const token = jwt.sign({
