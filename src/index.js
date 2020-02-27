@@ -18,9 +18,9 @@ const client = new MongoClient(url, { useUnifiedTopology: true });
 const getDb = async () => {
   if (!client.isConnected()) {
     await client.connect()
-  } 
+  }
   const db = client.db(dbName)
-  
+
   return db
 }
 
@@ -36,55 +36,54 @@ app.post('/auth/signUp', async (req, res) => {
   const { username, password, repeat_password, name, email, age, sex } = req.body
   const db = await getDb()
   const playerInfo = { username, password, repeat_password, name, email, age, sex, points: 0 }
-  
+
   const schema = Joi.object().keys({
     username: Joi.string()
-    .trim()
-    .email()
-    .required(),
-    
+      .trim()
+      .email()
+      .required(),
+
     password: Joi.string()
-    .regex(/^[a-zA-Z0-9]{3,30}$/)
-    .required(),
-    
+      .regex(/^[a-zA-Z0-9]{3,30}$/)
+      .required(),
+
     repeat_password: Joi.ref('password'),
-    
+
     name: Joi.string()
-    .trim()
-    .min(3)
-    .max(30)
-    .required(),
-    
+      .trim()
+      .min(3)
+      .max(30)
+      .required(),
+
     email: Joi.ref('username'),
-    
+
     age: Joi.number()
-    .integer()
-    .min(18)
-    .max(65)
-    .required(),
-    
+      .integer()
+      .min(18)
+      .max(65)
+      .required(),
+
     sex: Joi.string()
-    .valid('M', 'F')
-    .required(),
-    
+      .valid('M', 'F')
+      .required(),
+
     points: Joi.number()
-    .integer()
-    .required()
-    
+      .integer()
+      .required()
+
   })
-  .with('password', 'repeat_password')
-  .with('username', 'email')
-  
+    .with('password', 'repeat_password')
+    .with('username', 'email')
+
   try {
-    const value = await schema.validateAsync(playerInfo)
-    console.log(value)
+    await schema.validateAsync(playerInfo)
   } catch (err) {
     res.send('Invalid schema')
     return
   }
-  
+
   const oldPlayer = await db.collection('Player').findOne({
-    $or:[
+    $or: [
       { username },
       { email }
     ]
@@ -98,15 +97,16 @@ app.post('/auth/signUp', async (req, res) => {
     const hashedPassword = await bcrypt.hash(playerInfo.password, 10)
     playerInfo.password = hashedPassword
     playerInfo.repeat_password = hashedPassword
-    console.log(hashedPassword)
-    console.log(playerInfo.password)
   } catch (err) {
     res.status(500).send('Error hashing password')
     return
   }
   const insertedPlayer = await db.collection('Player').insertOne(playerInfo)
   const newPlayer = insertedPlayer.ops[0]
-  res.send(newPlayer)
+  const token = jwt.sign({
+    userId: newPlayer._id
+  }, process.env.JWT_KEY)
+  res.send(token)
 })
 
 app.post('/auth/signIn', async (req, res) => {
@@ -115,23 +115,21 @@ app.post('/auth/signIn', async (req, res) => {
   const playerInfo = { username, password }
   const schema = Joi.object().keys({
     username: Joi.string()
-    .trim()
-    .email()
-    .required(),
-    
+      .trim()
+      .email()
+      .required(),
+
     password: Joi.string()
-    .regex(/^[a-zA-Z0-9]{3,30}$/)
-    .required()
+      .regex(/^[a-zA-Z0-9]{3,30}$/)
+      .required()
   }).with('username', 'password')
   try {
-    const value = await schema.validateAsync(playerInfo)
-    console.log(value)
+    await schema.validateAsync(playerInfo)
   } catch (err) {
     res.send('Invalid schema')
     return
   }
   const authPlayer = await db.collection('Player').findOne({ username })
-  console.log(authPlayer)
   try {
     if (await bcrypt.compare(req.body.password, authPlayer.password)) {
       res.send('Successful login')
@@ -158,7 +156,9 @@ app.get('/me', async (req, res) => {
   try {
     const verifiedPlayer = jwt.verify(token, process.env.JWT_KEY)
     const db = await getDb()
-    const playerInfo = await db.collection('Player').findOne({ _id: new ObjectID(verifiedPlayer.userId) })
+    const playerInfo = await db.collection('Player').findOne({
+      _id: new ObjectID(verifiedPlayer.userId)
+    })
     res.send(playerInfo)
   } catch (err) {
     res.sendStatus(401)
@@ -178,22 +178,21 @@ app.post('/matches', async (req, res) => {
   const match = { date, winnerId, loserId, result }
   const schema = Joi.object().keys({
     date: Joi.string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .required(),
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .required(),
 
     winnerId: Joi.string()
-    .required(),
+      .required(),
 
     loserId: Joi.string()
-    .required(),
+      .required(),
 
     result: Joi.array()
-    .items(Joi.number().integer())
-    .required()
+      .items(Joi.number().integer())
+      .required()
   }).with('winnerId', 'loserId')
   try {
-    const value = await schema.validateAsync(match)
-    console.log(value)
+    await schema.validateAsync(match)
   } catch (err) {
     res.send('Invalid schema')
     return
@@ -218,7 +217,10 @@ app.post('/matches', async (req, res) => {
     }
   })
   const newMatch = insertedMatch.ops[0]
-  res.send(newMatch)
+  const token = jwt.sign({
+    matchId: newMatch._id
+  }, process.env.JWT_KEY)
+  res.send(token)
 })
 
 app.get('/players', async (req, res) => {
