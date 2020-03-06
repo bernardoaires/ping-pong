@@ -24,6 +24,18 @@ const getDb = async () => {
   return db
 }
 
+const validateJWT = (req, res, next) => {  
+  try {
+    const token = req.headers.authorization
+    jwt.verify(token, process.env.JWT_KEY)
+    next()
+  } catch (err) {
+    res.sendStatus(401)
+    next()
+  }
+}
+
+app.use(validateJWT)
 app.use(express.json())
 app.use(morgan('tiny'))
 app.use(bodyParser.json())
@@ -131,9 +143,7 @@ app.post('/auth/signIn', async (req, res) => {
   }
   const authPlayer = await db.collection('Player').findOne({ username })
   try {
-    if (await bcrypt.compare(req.body.password, authPlayer.password)) {
-      res.send('Successful login')
-    } else {
+    if (!await bcrypt.compare(req.body.password, authPlayer.password)) {
       res.status(404).send('Failed login')
       return
     }
